@@ -1,6 +1,7 @@
 package google
 
 import (
+	"bytes"
 	"cloud.google.com/go/storage"
 	"fmt"
 	"golang.org/x/net/context"
@@ -45,18 +46,16 @@ func DeleteFile(link string) error {
 	return nil
 }
 
-func WriteToCloudStorage(url string) (gsUrl string, filePath string, error error) {
+func WriteToCloudStorage(url string) (gsUrl string, localFilePath string, error error) {
 	resp, err := http.Get(url)
 	if err != nil {
 		return "", "", err
 	}
+	var buf bytes.Buffer
+	body := io.TeeReader(resp.Body, &buf)
 	fileName := randomString(8) + ".wav"
-	file, err := os.Create(fileName)
-	if err != nil {
-		return "", "", err
-	}
-	_, err = io.Copy(file, resp.Body)
-	//defer resp.Body.Close()
+
+	defer resp.Body.Close()
 	ctx := context.Background()
 	client, err := storage.NewClient(ctx)
 	if err != nil {
@@ -66,7 +65,7 @@ func WriteToCloudStorage(url string) (gsUrl string, filePath string, error error
 
 	wc := bkt.Object(fileName).NewWriter(ctx)
 	wc.ContentType = "audio/wave"
-	_, err = io.Copy(wc, resp.Body)
+	_, err = io.Copy(wc, body)
 	if err != nil {
 		return "", "", err
 	}
@@ -74,8 +73,16 @@ func WriteToCloudStorage(url string) (gsUrl string, filePath string, error error
 	if err != nil {
 		return "", "", err
 	}
-	gsUrl = "gs://" + os.Getenv("BUCKET_NAME") + "/" + fileName
-	fmt.Println("File " + fileName + " was uploaded to google bucket")
+	gsName := "gs://" + os.Getenv("BUCKET_NAME") + "/" + fileName
+	fmt.Println("File " + gsName + " was uploaded to google bucket")
 
-	return gsUrl, file.Name(), nil
+	localFilePath = "/tmp/" + fileName
+	file, err := os.Create(localFilePath)
+	defer file.Close()
+	if err != nil {
+		return "", "", err
+	}
+	_, err = io.Copy(file, &buf)
+
+	return gsName, localFilePath, nil
 }

@@ -66,8 +66,7 @@ func textsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func recognize(text dto.Text, c chan dto.Text) {
-	fmt.Println(text.Text)
-	link, filePath, err := google.WriteToCloudStorage(text.PathToFile)
+	link, filePath, err := google.WriteToCloudStorage(text.FileUrl)
 	if err == nil {
 		rate, duration := reader.GetRateAndLength(filePath)
 		text.Duration = roundSecs(duration)
