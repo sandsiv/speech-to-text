@@ -35,7 +35,9 @@ ___
 ```
 **uuid** is optional.
 
-**fileUrl** and **language** is required.
+**fileUrl** and **language** is required. Supported languages: ***en, it, de, fr, nl, es, ca, gl, pt, pl, ro, el, da, 
+eu, ru, bg, sl, sr, hr.***
+
 ___
 ### Response Example:
 ```

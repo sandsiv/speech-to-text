@@ -11,6 +11,19 @@ import (
 
 var languages = map[string]string{
 	"en": "en-US",
+	"it": "it-IT",
+	"nl": "nl-NL",
+	"es": "es-ES",
+	"ca": "ca-ES",
+	"gl": "gl-ES",
+	"pt": "pt-PT",
+	"pl": "pl-PL",
+	"ro": "ro-RO",
+	"el": "el-GR",
+	"da": "da-DK",
+	"ru": "ru-RU",
+	"sl": "sl-SI",
+	"hr": "hr-HR",
 }
 
 func SpeechToText(pathToFile string, rate int32, language string) (error, string) {
