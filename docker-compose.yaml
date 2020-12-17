@@ -1,0 +1,11 @@
+version: "3.9"
+services:
+  speech-to-text:
+    build: .
+    environment:
+      BUCKET_NAME: ${BUCKET_NAME}
+      GOOGLE_APPLICATION_CREDENTIALS: /go/creds.json
+    volumes:
+      - ${GOOGLE_APPLICATION_CREDENTIALS}:/go/creds.json
+    ports:
+      - 7070:7070

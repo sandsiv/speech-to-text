@@ -15,6 +15,13 @@ import (
 
 func main() {
 	log.Println("Starting Speech to text service...")
+	if os.Getenv("BUCKET_NAME") == "" {
+		panic("Env variable BUCKET_NAME is required")
+	}
+	if os.Getenv("GOOGLE_APPLICATION_CREDENTIALS") == "" {
+		panic("Env variable GOOGLE_APPLICATION_CREDENTIALS is required")
+	}
+
 	handler := http.NewServeMux()
 	handler.HandleFunc("/getTexts", Logger(textsHandler))
 	s := http.Server{
@@ -62,7 +69,7 @@ func textsHandler(w http.ResponseWriter, r *http.Request) {
 	handleError(err)
 	_, err = w.Write(result)
 	handleError(err)
-	fmt.Println("Ваш финиш еще полчаса назад был!!")
+	fmt.Println("Recognition Audio completed successfully")
 }
 
 func recognize(text dto.Text, c chan dto.Text) {
@@ -77,6 +84,7 @@ func recognize(text dto.Text, c chan dto.Text) {
 		err := os.Remove(filePath)
 		handleError(err)
 	}
+	handleError(err)
 
 	c <- text
 }
