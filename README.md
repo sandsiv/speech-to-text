@@ -1,7 +1,7 @@
-## Speech to text Service
+# Speech to text Service
 This service implement **REST API** for recognition audio files using google cloud speech recognition
 
-###Installation
+## Installation
 
 1. First you need to have [Google Cloud account](https://cloud.google.com/ "Google Cloud")
 2. Create credentials.json file according to [documentation](https://cloud.google.com/docs/authentication/getting-started)
@@ -14,12 +14,12 @@ This service implement **REST API** for recognition audio files using google clo
 7. Run `docker-compose build`
 8. Run `docker-compose up -d`. For watching the application logs use `docker-compose logs -f` command
 
-###Usage
+## Usage
 REST API has only one endpoint:
 
 POST `localhost:7070/getTexts`
 ___
-####Body Example:
+### Body Example:
 ```
 [
   {
@@ -37,7 +37,7 @@ ___
 
 **fileUrl** and **language** is required.
 ___
-####Response Example:
+### Response Example:
 ```
 [
   {
