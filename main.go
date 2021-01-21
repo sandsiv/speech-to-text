@@ -58,7 +58,17 @@ func textsHandler(w http.ResponseWriter, r *http.Request) {
 	err = json.Unmarshal(body, &texts)
 	handleError(err)
 	c := make(chan dto.Text)
-	for _, text := range texts {
+	chunks := chunkBy(texts, 20)
+	var uploadedTexts []dto.Text
+	for _, chunk := range chunks {
+		for _, text := range chunk {
+			go uploadToCloud(text, c)
+		}
+		for i := 0; i < len(chunk); i++ {
+			uploadedTexts = append(uploadedTexts, <-c)
+		}
+	}
+	for _, text := range uploadedTexts {
 		go recognize(text, c)
 	}
 	var results []dto.Text
@@ -72,16 +82,30 @@ func textsHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("Recognition Audio completed successfully")
 }
 
+func chunkBy(texts []dto.Text, chunkSize int) (chunks [][]dto.Text) {
+	for chunkSize < len(texts) {
+		texts, chunks = texts[chunkSize:], append(chunks, texts[0:chunkSize:chunkSize])
+	}
+
+	return append(chunks, texts)
+}
+
+func uploadToCloud(text dto.Text, c chan dto.Text) {
+	text.Link, text.FilePath, text.Error = google.WriteToCloudStorage(text.FileUrl)
+
+	c <- text
+}
+
 func recognize(text dto.Text, c chan dto.Text) {
-	link, filePath, err := google.WriteToCloudStorage(text.FileUrl)
+	err := text.Error
 	if err == nil {
-		rate, duration := reader.GetRateAndLength(filePath)
+		rate, duration := reader.GetRateAndLength(text.FilePath)
 		text.Duration = roundSecs(duration)
-		err, text.Text = google.SpeechToText(link, rate, text.Language)
+		err, text.Text = google.SpeechToText(text.Link, rate, text.Language)
 		handleError(err)
-		err = google.DeleteFile(link)
+		err = google.DeleteFile(text.Link)
 		handleError(err)
-		err := os.Remove(filePath)
+		err := os.Remove(text.FilePath)
 		handleError(err)
 	}
 	handleError(err)
