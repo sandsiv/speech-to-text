@@ -3,12 +3,14 @@ package google
 import (
 	"bytes"
 	"cloud.google.com/go/storage"
+	"errors"
 	"fmt"
 	"golang.org/x/net/context"
 	"io"
 	"math/rand"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -47,10 +49,15 @@ func DeleteFile(link string) error {
 }
 
 func WriteToCloudStorage(url string) (gsUrl string, localFilePath string, error error) {
+	fmt.Println("Start downloading file " + url)
 	resp, err := http.Get(url)
 	if err != nil {
 		return "", "", err
 	}
+	if resp.StatusCode != 200 {
+		return "", "", errors.New("Wrong status code (" + strconv.Itoa(resp.StatusCode) + ") for url " + url)
+	}
+	fmt.Println("Start uploading file to gc " + url)
 	var buf bytes.Buffer
 	body := io.TeeReader(resp.Body, &buf)
 	fileName := randomString(8) + ".wav"

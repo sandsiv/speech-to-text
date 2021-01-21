@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 )
 
@@ -57,8 +58,10 @@ func textsHandler(w http.ResponseWriter, r *http.Request) {
 	var texts []dto.Text
 	err = json.Unmarshal(body, &texts)
 	handleError(err)
+	totalNum := strconv.Itoa(len(texts))
+	fmt.Println(totalNum + " texts received")
 	c := make(chan dto.Text)
-	chunks := chunkBy(texts, 20)
+	chunks := chunkBy(texts, 50)
 	var uploadedTexts []dto.Text
 	for _, chunk := range chunks {
 		for _, text := range chunk {
@@ -68,18 +71,24 @@ func textsHandler(w http.ResponseWriter, r *http.Request) {
 			uploadedTexts = append(uploadedTexts, <-c)
 		}
 	}
+	fmt.Println("Start Audio Recognition")
 	for _, text := range uploadedTexts {
 		go recognize(text, c)
 	}
 	var results []dto.Text
+	errorsNum := 0
 	for i := 0; i < len(texts); i++ {
-		results = append(results, <-c)
+		text := <-c
+		if text.RecognitionError != nil {
+			errorsNum++
+		}
+		results = append(results, text)
 	}
 	result, err := json.Marshal(results)
 	handleError(err)
 	_, err = w.Write(result)
 	handleError(err)
-	fmt.Println("Recognition Audio completed successfully")
+	fmt.Println("Audio Recognition completed successfully. Errors: " + strconv.Itoa(errorsNum))
 }
 
 func chunkBy(texts []dto.Text, chunkSize int) (chunks [][]dto.Text) {
@@ -101,10 +110,23 @@ func recognize(text dto.Text, c chan dto.Text) {
 	if err == nil {
 		rate, duration := reader.GetRateAndLength(text.FilePath)
 		text.Duration = roundSecs(duration)
-		err, text.Text = google.SpeechToText(text.Link, rate, text.Language)
-		handleError(err)
+		retry := 0
+		for true {
+			text.RecognitionError, text.Text = google.SpeechToText(text.Link, rate, text.Language)
+			if text.RecognitionError == nil {
+				break
+			} else {
+				time.Sleep(20 * time.Second)
+				retry++
+				fmt.Println("Retrying recognition request #" + strconv.Itoa(retry) + " after error:" + text.RecognitionError.Error())
+			}
+		}
+	}
+	if text.Link != "" {
 		err = google.DeleteFile(text.Link)
 		handleError(err)
+	}
+	if text.FilePath != "" {
 		err := os.Remove(text.FilePath)
 		handleError(err)
 	}
