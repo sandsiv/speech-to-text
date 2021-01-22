@@ -61,24 +61,21 @@ func textsHandler(w http.ResponseWriter, r *http.Request) {
 	totalNum := strconv.Itoa(len(texts))
 	fmt.Println(totalNum + " texts received")
 	c := make(chan dto.Text)
+	c1 := make(chan dto.Text)
 	chunks := chunkBy(texts, 50)
-	var uploadedTexts []dto.Text
 	for _, chunk := range chunks {
 		for _, text := range chunk {
 			go uploadToCloud(text, c)
 		}
 		for i := 0; i < len(chunk); i++ {
-			uploadedTexts = append(uploadedTexts, <-c)
+			go recognize(<-c, c1)
 		}
 	}
-	fmt.Println("Start Audio Recognition")
-	for _, text := range uploadedTexts {
-		go recognize(text, c)
-	}
+
 	var results []dto.Text
 	errorsNum := 0
 	for i := 0; i < len(texts); i++ {
-		text := <-c
+		text := <-c1
 		if text.RecognitionError != nil {
 			errorsNum++
 		}
