@@ -25,6 +25,7 @@ func main() {
 
 	handler := http.NewServeMux()
 	handler.HandleFunc("/getTexts", Logger(textsHandler))
+	handler.HandleFunc("/healthz", healthz)
 	s := http.Server{
 		Addr:           "0.0.0.0:7070",
 		Handler:        handler,
@@ -46,6 +47,10 @@ func Logger(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+func healthz(w http.ResponseWriter, _ *http.Request) {
+	w.WriteHeader(http.StatusOK)
+}
+
 func handleError(error error) {
 	if error != nil {
 		log.Print(error)
@@ -62,7 +67,7 @@ func textsHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Println(totalNum + " texts received")
 	c := make(chan dto.Text)
 	c1 := make(chan dto.Text)
-	chunks := chunkBy(texts, 50)
+	chunks := chunkBy(texts, 30)
 	for _, chunk := range chunks {
 		for _, text := range chunk {
 			go uploadToCloud(text, c)
