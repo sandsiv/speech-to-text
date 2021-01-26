@@ -24,6 +24,7 @@ var languages = map[string]string{
 	"ru": "ru-RU",
 	"sl": "sl-SI",
 	"hr": "hr-HR",
+	"de": "de-DE",
 }
 
 func SpeechToText(pathToFile string, rate int32, language string) (error, string) {
