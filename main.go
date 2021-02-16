@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -118,6 +119,11 @@ func recognize(text dto.Text, c chan dto.Text) {
 			if text.RecognitionError == nil {
 				break
 			} else {
+				errorText := fmt.Sprintf("%v", text.RecognitionError.Error())
+				if strings.Contains(errorText, "Invalid audio file") || strings.Contains(errorText, "language with code") {
+					break
+				}
+
 				time.Sleep(20 * time.Second)
 				retry++
 				fmt.Println("Retrying recognition request #" + strconv.Itoa(retry) + " after error:" + text.RecognitionError.Error())
