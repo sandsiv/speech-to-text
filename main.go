@@ -26,6 +26,7 @@ func main() {
 
 	handler := http.NewServeMux()
 	handler.HandleFunc("/getTexts", Logger(textsHandler))
+	handler.HandleFunc("/addCredentials", Logger(addCredentials))
 	handler.HandleFunc("/healthz", healthz)
 	s := http.Server{
 		Addr:           "0.0.0.0:7070",
@@ -40,9 +41,7 @@ func main() {
 
 func Logger(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
 		w.Header().Set("Content-Type", "application/json")
-
 		log.Printf("Server [http] method [%s] connnection from [%v]", r.Method, r.RemoteAddr)
 		next.ServeHTTP(w, r)
 	}
@@ -55,6 +54,44 @@ func healthz(w http.ResponseWriter, _ *http.Request) {
 func handleError(error error) {
 	if error != nil {
 		log.Print(error)
+	}
+}
+
+func responseError(w http.ResponseWriter, code int, error error) bool {
+	if error == nil {
+		return false
+	}
+	w.WriteHeader(code)
+	_, _ = fmt.Fprintf(w, "{\"error\":\""+error.Error()+"\"}")
+	return true
+}
+
+func addCredentials(w http.ResponseWriter, r *http.Request) {
+	body, err := ioutil.ReadAll(r.Body)
+	if responseError(w, http.StatusBadRequest, err) {
+		return
+	}
+	var credentials dto.Credentials
+	err = json.Unmarshal(body, &credentials)
+	if responseError(w, http.StatusBadRequest, err) {
+		return
+	}
+	if credentials.BucketName == "" || credentials.Credentials == nil || credentials.EnterpriseId == 0 {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = fmt.Fprintf(w, "{\"error\":\"credentials, bucketName and enterpriseId are required fields\"}")
+		return
+	}
+	err = google.CheckCredentials(credentials)
+	if responseError(w, http.StatusConflict, err) {
+		return
+	}
+	err = google.AddBucketName(credentials.EnterpriseId, credentials.BucketName)
+	if responseError(w, http.StatusConflict, err) {
+		return
+	}
+	err = google.AddCredentials(credentials.EnterpriseId, credentials.Credentials)
+	if responseError(w, http.StatusConflict, err) {
+		return
 	}
 }
 
@@ -103,7 +140,7 @@ func chunkBy(texts []dto.Text, chunkSize int) (chunks [][]dto.Text) {
 }
 
 func uploadToCloud(text dto.Text, c chan dto.Text) {
-	text.Link, text.FilePath, text.Error = google.WriteToCloudStorage(text.FileUrl)
+	text.Link, text.FilePath, text.Error = google.WriteToCloudStorage(text.FileUrl, text.EnterpriseId)
 
 	c <- text
 }
@@ -115,11 +152,12 @@ func recognize(text dto.Text, c chan dto.Text) {
 		text.Duration = roundSecs(duration)
 		retry := 0
 		for true {
-			text.RecognitionError, text.Text = google.SpeechToText(text.Link, rate, text.Language)
+			text.RecognitionError, text.Text = google.SpeechToText(text.Link, rate, text.Language, text.EnterpriseId)
 			if text.RecognitionError == nil {
 				break
 			} else {
 				errorText := fmt.Sprintf("%v", text.RecognitionError.Error())
+				fmt.Println(errorText)
 				if strings.Contains(errorText, "Invalid audio file") || strings.Contains(errorText, "language with code") {
 					break
 				}
@@ -131,7 +169,7 @@ func recognize(text dto.Text, c chan dto.Text) {
 		}
 	}
 	if text.Link != "" {
-		err = google.DeleteFile(text.Link)
+		err = google.DeleteFile(text.Link, text.EnterpriseId)
 		handleError(err)
 	}
 	if text.FilePath != "" {

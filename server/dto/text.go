@@ -6,6 +6,7 @@ type Text struct {
 	Text             string `json:"text"`
 	Duration         int32  `json:"duration"`
 	Language         string `json:"language"`
+	EnterpriseId     int    `json:"enterpriseId"`
 	Error            error  `json:"-"`
 	RecognitionError error  `json:"-"`
 	Link             string `json:"-"`

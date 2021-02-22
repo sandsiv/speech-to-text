@@ -32,13 +32,13 @@ var languages = map[string]string{
 	"eu": "eu-ES",
 }
 
-func SpeechToText(pathToFile string, rate int32, language string) (error, string) {
+func SpeechToText(pathToFile string, rate int32, language string, enterpriseId int) (error, string) {
 	language, err := getLanguage(language)
 	if err != nil {
 		return err, ""
 	}
 	ctx := context.Background()
-	client, err := speech.NewClient(ctx)
+	client, err := speech.NewClient(ctx, GetCredentials(enterpriseId))
 	if err != nil {
 		return err, ""
 	}

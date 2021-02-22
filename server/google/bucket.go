@@ -5,9 +5,9 @@ import (
 	"cloud.google.com/go/storage"
 	"errors"
 	"fmt"
+	"github.com/Alliera/speech-to-text/server"
 	"golang.org/x/net/context"
 	"io"
-	"math/rand"
 	"net/http"
 	"os"
 	"strconv"
@@ -15,23 +15,11 @@ import (
 	"time"
 )
 
-func randomString(n int) string {
-	rand.Seed(time.Now().UnixNano())
-	var letters = []rune("abcdghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
-
-	b := make([]rune, n)
-	for i := range b {
-		b[i] = letters[rand.Intn(len(letters))]
-
-	}
-	return string(b)
-}
-
-func DeleteFile(link string) error {
+func DeleteFile(link string, enterpriseId int) error {
 	parts := strings.Split(link, "/")
 	object := parts[len(parts)-1]
 	ctx := context.Background()
-	client, err := storage.NewClient(ctx)
+	client, err := storage.NewClient(ctx, GetCredentials(enterpriseId))
 	if err != nil {
 		return fmt.Errorf("storage.NewClient: %v", err)
 	}
@@ -40,7 +28,7 @@ func DeleteFile(link string) error {
 	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
 
-	o := client.Bucket(os.Getenv("BUCKET_NAME")).Object(object)
+	o := client.Bucket(GetBucketName(enterpriseId)).Object(object)
 	if err := o.Delete(ctx); err != nil {
 		return fmt.Errorf("Object(%q).Delete: %v", object, err)
 	}
@@ -48,7 +36,7 @@ func DeleteFile(link string) error {
 	return nil
 }
 
-func WriteToCloudStorage(url string) (gsUrl string, localFilePath string, error error) {
+func WriteToCloudStorage(url string, enterpriseId int) (gsUrl string, localFilePath string, error error) {
 	fmt.Println("Start downloading file " + url)
 	resp, err := http.Get(url)
 	if err != nil {
@@ -60,15 +48,16 @@ func WriteToCloudStorage(url string) (gsUrl string, localFilePath string, error 
 	fmt.Println("Start uploading file to gc " + url)
 	var buf bytes.Buffer
 	body := io.TeeReader(resp.Body, &buf)
-	fileName := randomString(8) + ".wav"
+	fileName := server.RandomString(8) + ".wav"
 
 	defer resp.Body.Close()
 	ctx := context.Background()
-	client, err := storage.NewClient(ctx)
+	client, err := storage.NewClient(ctx, GetCredentials(enterpriseId))
 	if err != nil {
 		return "", "", err
 	}
-	bkt := client.Bucket(os.Getenv("BUCKET_NAME"))
+	bucketName := GetBucketName(enterpriseId)
+	bkt := client.Bucket(bucketName)
 
 	wc := bkt.Object(fileName).NewWriter(ctx)
 	wc.ContentType = "audio/wave"
@@ -80,7 +69,7 @@ func WriteToCloudStorage(url string) (gsUrl string, localFilePath string, error 
 	if err != nil {
 		return "", "", err
 	}
-	gsName := "gs://" + os.Getenv("BUCKET_NAME") + "/" + fileName
+	gsName := "gs://" + bucketName + "/" + fileName
 	fmt.Println("File " + gsName + " was uploaded to google bucket")
 
 	localFilePath = "/tmp/" + fileName
