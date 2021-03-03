@@ -1,0 +1,33 @@
+/*
+ * Builder v. 0.0.1
+ */
+
+def container_building_script = './build-speech-to-text-container.sh'
+
+pipeline {
+
+  agent {
+    label 'flake8'
+  }
+
+  stages {
+
+    stage('Checkout PR') {
+      steps {
+        checkout([
+            $class: 'GitSCM',
+            branches: scm.branches,
+            doGenerateSubmoduleConfigurations: scm.doGenerateSubmoduleConfigurations,
+            extensions: [[$class: 'CloneOption', noTags: false, shallow: false, depth: 0, reference: '']],
+            userRemoteConfigs: scm.userRemoteConfigs,
+         ])
+      }
+    }
+
+    stage('Build container') {
+        steps {
+            sh container_building_script
+        }
+    }
+  }
+}
