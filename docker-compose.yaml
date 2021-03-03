@@ -7,5 +7,6 @@ services:
       GOOGLE_APPLICATION_CREDENTIALS: /go/creds.json
     volumes:
       - ${GOOGLE_APPLICATION_CREDENTIALS}:/go/creds.json
+      - ./config:/go/src/app/config
     ports:
       - 7070:7070

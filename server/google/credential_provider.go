@@ -19,15 +19,13 @@ const bucketsFilePath = configPath + "buckets.json"
 const credentialsPath = configPath + "credentials/"
 
 func GetCredentials(enterpriseId int) option.ClientOption {
-	credentials := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON")
-	if enterpriseId == 0 {
-		return option.WithCredentialsFile(credentials)
+	credentials := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS")
+	if enterpriseId != 0 {
+		path := credentialsPath + strconv.Itoa(enterpriseId) + ".json"
+		if _, err := os.Stat(path); err == nil {
+			credentials = path
+		}
 	}
-	path := credentialsPath + strconv.Itoa(enterpriseId) + ".json"
-	if _, err := os.Stat(path); err == nil {
-		credentials = path
-	}
-
 	return option.WithCredentialsFile(credentials)
 }
 
@@ -158,6 +156,7 @@ func CheckCredentials(credentials dto.Credentials) error {
 			AudioSource: &speechpb.RecognitionAudio_Uri{Uri: "gs://cloud-samples-data/speech/brooklyn_bridge.raw"},
 		},
 	})
+	_ = client.Close()
 
 	if err != nil {
 		_ = os.Remove(tempFile)
@@ -173,6 +172,8 @@ func CheckCredentials(credentials dto.Credentials) error {
 	bkt := clientBucket.Bucket(credentials.BucketName)
 	it := bkt.Objects(ctx, nil)
 	_, err = it.Next()
+	_ = clientBucket.Close()
+
 	if err != nil {
 		_ = os.Remove(tempFile)
 		return err

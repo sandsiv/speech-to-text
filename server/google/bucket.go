@@ -63,9 +63,11 @@ func WriteToCloudStorage(url string, enterpriseId int) (gsUrl string, localFileP
 	wc.ContentType = "audio/wave"
 	_, err = io.Copy(wc, body)
 	if err != nil {
+		_ = client.Close()
 		return "", "", err
 	}
 	err = wc.Close()
+	_ = client.Close()
 	if err != nil {
 		return "", "", err
 	}

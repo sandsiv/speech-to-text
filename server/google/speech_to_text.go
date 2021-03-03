@@ -78,6 +78,7 @@ func SpeechToText(pathToFile string, rate int32, language string, enterpriseId i
 		}
 		resultText += ucFirst(transcript) + "."
 	}
+	_ = client.Close()
 
 	return nil, resultText
 }
