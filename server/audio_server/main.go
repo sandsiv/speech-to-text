@@ -15,8 +15,9 @@ import (
 )
 
 type RecognitionResult struct {
-	Time   time.Time
-	Result string
+	Time     time.Time `json:"time"`
+	Text     string    `json:"text"`
+	Duration int64     `json:"duration"`
 }
 
 const listenAddr = ":7071"
@@ -40,7 +41,7 @@ func removeOldRecognitionResults() {
 			recognitionResult := value.(RecognitionResult)
 			diff := time.Now().Sub(recognitionResult.Time)
 			if diff > time.Hour*3 {
-				log.Fatalf("Text receiving timeout exeeded!")
+				log.Println("Text receiving timeout exeeded!")
 				RecognitionResults.Delete(key)
 			}
 			return true
@@ -102,11 +103,12 @@ func Handle(pCtx context.Context, c net.Conn) {
 	}
 	log.Printf("processing call %s", id.String())
 
-	resp, err := google.SpeechToTextFromStream(ctx, c, MaxCallDuration, enterpriseId, languageCode)
+	duration, text, err := google.SpeechToTextFromStream(ctx, c, MaxCallDuration, enterpriseId, languageCode)
+	duration = int64(google.RoundSecs(float64(duration)))
 	if err != nil {
 		log.Println("failed to process command:", err)
 		return
 	}
-	fmt.Println(resp)
-	RecognitionResults.Store(id.String(), RecognitionResult{Time: time.Now(), Result: resp})
+
+	RecognitionResults.Store(id.String(), RecognitionResult{Time: time.Now(), Text: text, Duration: duration})
 }

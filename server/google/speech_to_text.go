@@ -53,25 +53,39 @@ func getSpeechToTextClient(ctx context.Context, enterpriseId int) (*speech.Clien
 	return client.(*speech.Client), nil
 }
 
+//Google use 15 sec blocks billing
+func RoundSecs(sec float64) int32 {
+	var secondsTarification float64 = 15
+	blocks := sec / secondsTarification
+	blocksInt := int32(blocks)
+	remainder := blocks - float64(blocksInt)
+	var overSecs float64 = 0
+	if remainder != 0 {
+		overSecs = secondsTarification
+	}
+
+	return blocksInt*15 + int32(overSecs)
+}
+
 func SpeechToTextFromStream(
 	pCtx context.Context,
 	r io.ReadWriter,
 	timeout time.Duration,
 	enterpriseId int,
-	languageCode string) (string, error) {
+	languageCode string) (duration int64, text string, err error) {
 	ctx, cancel := context.WithTimeout(pCtx, timeout)
 	defer cancel()
 	client, err := getSpeechToTextClient(ctx, enterpriseId)
 	if err != nil {
-		return "", err
+		return 0, "", err
 	}
 	svc, err := client.StreamingRecognize(ctx)
 	if err != nil {
-		return "", errors.Wrap(err, "failed to start streaming recognition")
+		return 0, "", errors.Wrap(err, "failed to start streaming recognition")
 	}
 	language, err := getLanguage(languageCode)
 	if err != nil {
-		return "", err
+		return 0, "", err
 	}
 	if err := svc.Send(&speechpb.StreamingRecognizeRequest{
 		StreamingRequest: &speechpb.StreamingRecognizeRequest_StreamingConfig{
@@ -86,12 +100,10 @@ func SpeechToTextFromStream(
 			},
 		},
 	}); err != nil {
-		return "", errors.Wrap(err, "failed to send recognition config")
+		return 0, "", errors.Wrap(err, "failed to send recognition config")
 	}
 
 	go pipeFromSocket(ctx, r, svc)
-
-	text := ""
 
 	for {
 		resp, err := svc.Recv()
@@ -105,6 +117,7 @@ func SpeechToTextFromStream(
 			log.Fatalf("Could not recognize: %v", err)
 		}
 		for _, result := range resp.Results {
+			duration = result.GetResultEndTime().Seconds
 			for _, alt := range result.GetAlternatives() {
 				if alt.Transcript != "" {
 					text += alt.Transcript + "."
@@ -115,7 +128,7 @@ func SpeechToTextFromStream(
 		}
 	}
 
-	return text, nil
+	return duration, text, nil
 }
 func pipeFromSocket(ctx context.Context, in io.Reader, out speechpb.Speech_StreamingRecognizeClient) {
 	var err error

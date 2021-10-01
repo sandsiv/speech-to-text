@@ -114,7 +114,6 @@ func getTextById(w http.ResponseWriter, r *http.Request) {
 	id := v.Get("id")
 	ok := false
 	var res interface{}
-	text := ""
 	retryCount := 10
 	for !ok && retryCount != 0 {
 		res, ok = audio_server.RecognitionResults.LoadAndDelete(id)
@@ -125,11 +124,16 @@ func getTextById(w http.ResponseWriter, r *http.Request) {
 		retryCount = retryCount - 1
 	}
 
+	var recognitionResult []byte
+
 	if ok {
-		result := res.(audio_server.RecognitionResult)
-		text = result.Result
+		recognitionResult, _ = json.Marshal(res.(audio_server.RecognitionResult))
+		w.Write(recognitionResult)
+		return
 	}
-	w.Write([]byte(text))
+	w.WriteHeader(http.StatusNotFound)
+	w.Write(recognitionResult)
+	return
 }
 
 func textsHandler(w http.ResponseWriter, r *http.Request) {
@@ -186,7 +190,7 @@ func recognize(text dto.Text, c chan dto.Text) {
 	err := text.Error
 	if err == nil {
 		rate, duration := reader.GetRateAndLength(text.FilePath)
-		text.Duration = roundSecs(duration)
+		text.Duration = google.RoundSecs(duration)
 		retry := 0
 		for {
 			text.RecognitionError, text.Text = google.SpeechToTextFromFile(
@@ -220,18 +224,4 @@ func recognize(text dto.Text, c chan dto.Text) {
 	handleError(err)
 
 	c <- text
-}
-
-//Google use 15 sec blocks billing
-func roundSecs(sec float64) int32 {
-	var secondsTarification float64 = 15
-	blocks := sec / secondsTarification
-	blocksInt := int32(blocks)
-	remainder := blocks - float64(blocksInt)
-	var overSecs float64 = 0
-	if remainder != 0 {
-		overSecs = secondsTarification
-	}
-
-	return blocksInt*15 + int32(overSecs)
 }
