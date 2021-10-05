@@ -143,6 +143,12 @@ func pipeFromSocket(ctx context.Context, in io.Reader, out speechpb.Speech_Strea
 	for ctx.Err() == nil {
 		m, err = audiosocket.NextMessage(in)
 		if errors.Cause(err) == io.EOF {
+			// Wait last words recognition by google
+			time.Sleep(1 * time.Second)
+			err = out.CloseSend()
+			if err != nil {
+				log.Println(err)
+			}
 			log.Println("audiosocket closed")
 			return
 		}
