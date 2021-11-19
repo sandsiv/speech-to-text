@@ -38,6 +38,11 @@ var languages = map[string]string{
 	"eu": "eu-ES",
 }
 
+var phoneCallModelLanguage = map[string]string{
+	"en": "en-US",
+	"fr": "fr-FR",
+}
+
 func getSpeechToTextClient(ctx context.Context, enterpriseId int) (*speech.Client, error) {
 	client, ok := speechToTextClients.Load(enterpriseId)
 	if !ok {
@@ -87,6 +92,11 @@ func SpeechToTextFromStream(
 	if err != nil {
 		return 0, "", err
 	}
+	model := "default"
+	if _, ok := phoneCallModelLanguage[languageCode]; ok {
+		model = "phone_call"
+	}
+
 	if err := svc.Send(&speechpb.StreamingRecognizeRequest{
 		StreamingRequest: &speechpb.StreamingRecognizeRequest_StreamingConfig{
 			StreamingConfig: &speechpb.StreamingRecognitionConfig{
@@ -94,7 +104,7 @@ func SpeechToTextFromStream(
 					Encoding:        speechpb.RecognitionConfig_LINEAR16,
 					SampleRateHertz: 8000,
 					LanguageCode:    language,
-					Model:           "phone_call",
+					Model:           model,
 					UseEnhanced:     true,
 				},
 			},
