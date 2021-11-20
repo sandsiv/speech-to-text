@@ -28,3 +28,19 @@ func checkErr(err error) {
 		panic(err)
 	}
 }
+
+func CreateFile(filename string) (*os.File, *wav.Writer) {
+	wavOut, err := os.Create(filename)
+	checkErr(err)
+
+	meta := wav.File{
+		Channels:        1,
+		SampleRate:      8000,
+		SignificantBits: 16,
+	}
+
+	writer, err := meta.NewWriter(wavOut)
+	checkErr(err)
+
+	return wavOut, writer
+}

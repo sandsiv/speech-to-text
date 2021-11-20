@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	reader "github.com/Alliera/speech-to-text/server/audio"
+	"github.com/Alliera/speech-to-text/server/audio_server"
 	"github.com/Alliera/speech-to-text/server/dto"
 	"github.com/Alliera/speech-to-text/server/google"
 	"io/ioutil"
@@ -24,18 +25,31 @@ func main() {
 		panic("Env variable GOOGLE_APPLICATION_CREDENTIALS is required")
 	}
 
+	go startRestApiServer()
+	go audio_server.Start()
+
+	forever := make(chan bool)
+
+	log.Printf(" [*] Server started. To exit press CTRL+C")
+	<-forever
+}
+
+func startRestApiServer() {
 	handler := http.NewServeMux()
 	handler.HandleFunc("/getTexts", Logger(textsHandler))
+	handler.HandleFunc("/getTextById", Logger(getTextById))
 	handler.HandleFunc("/addCredentials", Logger(addCredentials))
 	handler.HandleFunc("/healthz", healthz)
+	port := ":7070"
 	s := http.Server{
-		Addr:           "0.0.0.0:7070",
+		Addr:           "0.0.0.0" + port,
 		Handler:        handler,
 		ReadTimeout:    1000 * time.Second,
 		WriteTimeout:   1000 * time.Second,
 		IdleTimeout:    1000 * time.Second,
 		MaxHeaderBytes: 1 << 20, //1*2^20 - 128 kByte
 	}
+	fmt.Println("REST server started on " + port)
 	log.Println(s.ListenAndServe())
 }
 
@@ -95,6 +109,33 @@ func addCredentials(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func getTextById(w http.ResponseWriter, r *http.Request) {
+	v := r.URL.Query()
+	id := v.Get("id")
+	ok := false
+	var res interface{}
+	retryCount := 10
+	for !ok && retryCount != 0 {
+		res, ok = audio_server.RecognitionResults.LoadAndDelete(id)
+		if ok {
+			break
+		}
+		time.Sleep(time.Millisecond * 500)
+		retryCount = retryCount - 1
+	}
+
+	var recognitionResult []byte
+
+	if ok {
+		recognitionResult, _ = json.Marshal(res.(audio_server.RecognitionResult))
+		w.Write(recognitionResult)
+		return
+	}
+	w.WriteHeader(http.StatusNotFound)
+	w.Write(recognitionResult)
+	return
+}
+
 func textsHandler(w http.ResponseWriter, r *http.Request) {
 	body, err := ioutil.ReadAll(r.Body)
 	handleError(err)
@@ -149,10 +190,14 @@ func recognize(text dto.Text, c chan dto.Text) {
 	err := text.Error
 	if err == nil {
 		rate, duration := reader.GetRateAndLength(text.FilePath)
-		text.Duration = roundSecs(duration)
+		text.Duration = google.RoundSecs(duration)
 		retry := 0
-		for true {
-			text.RecognitionError, text.Text = google.SpeechToText(text.Link, rate, text.Language, text.EnterpriseId)
+		for {
+			text.RecognitionError, text.Text = google.SpeechToTextFromFile(
+				text.Link,
+				rate,
+				text.Language,
+				text.EnterpriseId)
 			if text.RecognitionError == nil {
 				break
 			} else {
@@ -179,18 +224,4 @@ func recognize(text dto.Text, c chan dto.Text) {
 	handleError(err)
 
 	c <- text
-}
-
-//Google use 15 sec blocks billing
-func roundSecs(sec float64) int32 {
-	var secondsTarification float64 = 15
-	blocks := sec / secondsTarification
-	blocksInt := int32(blocks)
-	remainder := blocks - float64(blocksInt)
-	var overSecs float64 = 0
-	if remainder != 0 {
-		overSecs = secondsTarification
-	}
-
-	return blocksInt*15 + int32(overSecs)
 }
