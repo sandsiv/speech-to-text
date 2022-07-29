@@ -3,12 +3,12 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/Alliera/logging"
 	reader "github.com/Alliera/speech-to-text/server/audio"
 	"github.com/Alliera/speech-to-text/server/audio_server"
 	"github.com/Alliera/speech-to-text/server/dto"
 	"github.com/Alliera/speech-to-text/server/google"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -16,13 +16,15 @@ import (
 	"time"
 )
 
+var logger = logging.NewDefault("main")
+
 func main() {
-	log.Println("Starting Speech to text service...")
+	logger.Info("Starting Speech to text service...")
 	if os.Getenv("BUCKET_NAME") == "" {
-		panic("Env variable BUCKET_NAME is required")
+		logger.Fatal("Env variable BUCKET_NAME is required")
 	}
 	if os.Getenv("GOOGLE_APPLICATION_CREDENTIALS") == "" {
-		panic("Env variable GOOGLE_APPLICATION_CREDENTIALS is required")
+		logger.Fatal("Env variable GOOGLE_APPLICATION_CREDENTIALS is required")
 	}
 
 	go startRestApiServer()
@@ -30,7 +32,7 @@ func main() {
 
 	forever := make(chan bool)
 
-	log.Printf(" [*] Server started. To exit press CTRL+C")
+	logger.Info(" [*] Server started. To exit press CTRL+C")
 	<-forever
 }
 
@@ -50,13 +52,16 @@ func startRestApiServer() {
 		MaxHeaderBytes: 1 << 20, //1*2^20 - 128 kByte
 	}
 	fmt.Println("REST server started on " + port)
-	log.Println(s.ListenAndServe())
+	err := s.ListenAndServe()
+	if err != nil {
+		logger.Error(err.Error())
+	}
 }
 
 func Logger(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		log.Printf("Server [http] method [%s] connnection from [%v]", r.Method, r.RemoteAddr)
+		logger.Info(fmt.Sprintf("Server [http] method [%s] connnection from [%v]", r.Method, r.RemoteAddr))
 		next.ServeHTTP(w, r)
 	}
 }
@@ -65,28 +70,29 @@ func healthz(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func handleError(error error) {
-	if error != nil {
-		log.Print(error)
+func handleError(err error) {
+	if err != nil {
+		logger.LogError(err)
 	}
 }
 
-func responseError(w http.ResponseWriter, code int, error error) bool {
-	if error == nil {
+func responseError(w http.ResponseWriter, code int, err error) bool {
+	if err == nil {
 		return false
 	}
 	w.WriteHeader(code)
-	_, _ = fmt.Fprintf(w, "{\"error\":\""+error.Error()+"\"}")
+	_, _ = fmt.Fprintf(w, "{\"err\":\""+err.Error()+"\"}")
 	return true
 }
 
 func addCredentials(w http.ResponseWriter, r *http.Request) {
 	body, err := ioutil.ReadAll(r.Body)
+	err = logging.Trace(err)
 	if responseError(w, http.StatusBadRequest, err) {
 		return
 	}
 	var credentials dto.Credentials
-	err = json.Unmarshal(body, &credentials)
+	err = logging.Trace(json.Unmarshal(body, &credentials))
 	if responseError(w, http.StatusBadRequest, err) {
 		return
 	}
@@ -95,15 +101,15 @@ func addCredentials(w http.ResponseWriter, r *http.Request) {
 		_, _ = fmt.Fprintf(w, "{\"error\":\"credentials, bucketName and enterpriseId are required fields\"}")
 		return
 	}
-	err = google.CheckCredentials(credentials)
+	err = logging.Trace(google.CheckCredentials(credentials))
 	if responseError(w, http.StatusConflict, err) {
 		return
 	}
-	err = google.AddBucketName(credentials.EnterpriseId, credentials.BucketName)
+	err = logging.Trace(google.AddBucketName(credentials.EnterpriseId, credentials.BucketName))
 	if responseError(w, http.StatusConflict, err) {
 		return
 	}
-	err = google.AddCredentials(credentials.EnterpriseId, credentials.Credentials)
+	err = logging.Trace(google.AddCredentials(credentials.EnterpriseId, credentials.Credentials))
 	if responseError(w, http.StatusConflict, err) {
 		return
 	}
@@ -128,20 +134,20 @@ func getTextById(w http.ResponseWriter, r *http.Request) {
 
 	if ok {
 		recognitionResult, _ = json.Marshal(res.(audio_server.RecognitionResult))
-		w.Write(recognitionResult)
+		_, _ = w.Write(recognitionResult)
 		return
 	}
 	w.WriteHeader(http.StatusNotFound)
-	w.Write(recognitionResult)
+	_, _ = w.Write(recognitionResult)
 	return
 }
 
 func textsHandler(w http.ResponseWriter, r *http.Request) {
 	body, err := ioutil.ReadAll(r.Body)
-	handleError(err)
+	handleError(logging.Trace(err))
 	var texts []dto.Text
 	err = json.Unmarshal(body, &texts)
-	handleError(err)
+	handleError(logging.Trace(err))
 	totalNum := strconv.Itoa(len(texts))
 	fmt.Println(totalNum + " texts received")
 	c := make(chan dto.Text)
@@ -166,9 +172,9 @@ func textsHandler(w http.ResponseWriter, r *http.Request) {
 		results = append(results, text)
 	}
 	result, err := json.Marshal(results)
-	handleError(err)
+	handleError(logging.Trace(err))
 	_, err = w.Write(result)
-	handleError(err)
+	handleError(logging.Trace(err))
 	fmt.Println("Audio Recognition completed successfully. Errors: " + strconv.Itoa(errorsNum))
 }
 
@@ -201,7 +207,7 @@ func recognize(text dto.Text, c chan dto.Text) {
 			if text.RecognitionError == nil {
 				break
 			} else {
-				errorText := fmt.Sprintf("%v", text.RecognitionError.Error())
+				errorText := text.RecognitionError.Error()
 				fmt.Println(errorText)
 				if strings.Contains(errorText, "Invalid audio file") || strings.Contains(errorText, "language with code") {
 					break
@@ -215,11 +221,11 @@ func recognize(text dto.Text, c chan dto.Text) {
 	}
 	if text.Link != "" {
 		err = google.DeleteFile(text.Link, text.EnterpriseId)
-		handleError(err)
+		handleError(logging.Trace(err))
 	}
 	if text.FilePath != "" {
-		err := os.Remove(text.FilePath)
-		handleError(err)
+		err = os.Remove(text.FilePath)
+		handleError(logging.Trace(err))
 	}
 	handleError(err)
 

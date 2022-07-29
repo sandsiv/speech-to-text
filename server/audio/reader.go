@@ -1,19 +1,22 @@
 package reader
 
 import (
+	"github.com/Alliera/logging"
 	"os"
 
 	"github.com/cryptix/wav"
 )
 
+var logger = logging.NewDefault("reader")
+
 func getFileMeta(fileName string) wav.File {
 	stat, err := os.Stat(fileName)
-	checkErr(err)
+	checkErr(logging.Trace(err))
 	file, err := os.Open(fileName)
-	checkErr(err)
+	checkErr(logging.Trace(err))
 
 	wavReader, err := wav.NewReader(file, stat.Size())
-	checkErr(err)
+	checkErr(logging.Trace(err))
 
 	return wavReader.GetFile()
 }
@@ -25,22 +28,6 @@ func GetRateAndLength(fileName string) (int32, float64) {
 
 func checkErr(err error) {
 	if err != nil {
-		panic(err)
+		logger.LogFatal(err)
 	}
-}
-
-func CreateFile(filename string) (*os.File, *wav.Writer) {
-	wavOut, err := os.Create(filename)
-	checkErr(err)
-
-	meta := wav.File{
-		Channels:        1,
-		SampleRate:      8000,
-		SignificantBits: 16,
-	}
-
-	writer, err := meta.NewWriter(wavOut)
-	checkErr(err)
-
-	return wavOut, writer
 }

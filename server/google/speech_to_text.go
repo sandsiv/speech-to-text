@@ -3,16 +3,18 @@ package google
 import (
 	speech "cloud.google.com/go/speech/apiv1"
 	"context"
+	"fmt"
+	"github.com/Alliera/logging"
 	"github.com/CyCoreSystems/audiosocket"
 	"github.com/pkg/errors"
 	speechpb "google.golang.org/genproto/googleapis/cloud/speech/v1"
 	"io"
-	"log"
 	"sync"
 	"time"
 	"unicode"
 )
 
+var logger = logging.NewDefault("google")
 var speechToTextClients sync.Map
 
 var languages = map[string]string{
@@ -48,7 +50,7 @@ func getSpeechToTextClient(ctx context.Context, enterpriseId int) (*speech.Clien
 	if !ok {
 		newClient, err := speech.NewClient(ctx, GetCredentials(enterpriseId))
 		if err != nil {
-			return nil, err
+			return nil, logging.Trace(err)
 		}
 		speechToTextClients.Store(enterpriseId, newClient)
 
@@ -82,22 +84,22 @@ func SpeechToTextFromStream(
 	defer cancel()
 	client, err := getSpeechToTextClient(ctx, enterpriseId)
 	if err != nil {
-		return 0, "", err
+		return 0, "", logging.Trace(err)
 	}
 	svc, err := client.StreamingRecognize(ctx)
 	if err != nil {
-		return 0, "", errors.Wrap(err, "failed to start streaming recognition")
+		return 0, "", logging.Trace(fmt.Errorf("failed to start streaming recognition: %s", err))
 	}
 	language, err := getLanguage(languageCode)
 	if err != nil {
-		return 0, "", err
+		return 0, "", logging.Trace(err)
 	}
 	model := "default"
 	if _, ok := phoneCallModelLanguage[languageCode]; ok {
 		model = "phone_call"
 	}
 
-	if err := svc.Send(&speechpb.StreamingRecognizeRequest{
+	if err = svc.Send(&speechpb.StreamingRecognizeRequest{
 		StreamingRequest: &speechpb.StreamingRecognizeRequest_StreamingConfig{
 			StreamingConfig: &speechpb.StreamingRecognitionConfig{
 				Config: &speechpb.RecognitionConfig{
@@ -110,7 +112,7 @@ func SpeechToTextFromStream(
 			},
 		},
 	}); err != nil {
-		return 0, "", errors.Wrap(err, "failed to send recognition config")
+		return 0, "", logging.Trace(fmt.Errorf("failed to send recognition config: %s", err))
 	}
 
 	go pipeFromSocket(ctx, r, svc)
@@ -121,10 +123,10 @@ func SpeechToTextFromStream(
 			break
 		}
 		if err != nil {
-			log.Fatalf("Cannot stream results: %v", err)
+			logger.Fatal(fmt.Sprintf("cannot stream results: %s", err))
 		}
 		if err := resp.Error; err != nil {
-			log.Fatalf("Could not recognize: %v", err)
+			logger.Fatal(fmt.Sprintf("could not recognize: %s", err))
 		}
 		for _, result := range resp.Results {
 			duration = result.GetResultEndTime().Seconds
@@ -157,25 +159,25 @@ func pipeFromSocket(ctx context.Context, in io.Reader, out speechpb.Speech_Strea
 			time.Sleep(1 * time.Second)
 			err = out.CloseSend()
 			if err != nil {
-				log.Println(err)
+				logger.Error(err.Error())
 			}
-			log.Println("audiosocket closed")
+			logger.Debug("audiosocket closed")
 			return
 		}
 		if m.Kind() == audiosocket.KindHangup {
-			log.Println("audiosocket received hangup command")
+			logger.Info("audiosocket received hangup command")
 			return
 		}
 		if m.Kind() == audiosocket.KindError {
-			log.Println("error from audiosocket")
+			logger.Error("error from audiosocket")
 			continue
 		}
 		if m.Kind() != audiosocket.KindSlin {
-			log.Println("ignoring non-slin message", m.Kind())
+			logger.Info(fmt.Sprintf("ignoring non-slin message: %v", m.Kind()))
 			continue
 		}
 		if m.ContentLength() < 1 {
-			log.Println("no content")
+			logger.Debug("no content")
 			continue
 		}
 		// Uncomment for write Payload in file (for texting)
@@ -186,10 +188,10 @@ func pipeFromSocket(ctx context.Context, in io.Reader, out speechpb.Speech_Strea
 			},
 		}); err != nil {
 			if err == io.EOF {
-				log.Println("recognition client closed")
+				logger.Debug("recognition client closed")
 				return
 			}
-			log.Println("failed to send audio data for recognition:", err)
+			logger.Error(fmt.Sprintf("failed to send audio data for recognition: %s", err))
 		}
 	}
 }
@@ -197,12 +199,12 @@ func pipeFromSocket(ctx context.Context, in io.Reader, out speechpb.Speech_Strea
 func SpeechToTextFromFile(pathToFile string, rate int32, language string, enterpriseId int) (error, string) {
 	language, err := getLanguage(language)
 	if err != nil {
-		return err, ""
+		return logging.Trace(err), ""
 	}
 	ctx := context.Background()
 	client, err := speech.NewClient(ctx, GetCredentials(enterpriseId))
 	if err != nil {
-		return err, ""
+		return logging.Trace(err), ""
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5000*time.Second)
@@ -221,11 +223,11 @@ func SpeechToTextFromFile(pathToFile string, rate int32, language string, enterp
 
 	op, err := client.LongRunningRecognize(ctx, req)
 	if err != nil {
-		return err, ""
+		return logging.Trace(err), ""
 	}
 	resp, err := op.Wait(ctx)
 	if err != nil {
-		return err, ""
+		return logging.Trace(err), ""
 	}
 
 	resultText := ""
@@ -249,7 +251,7 @@ func getLanguage(language string) (string, error) {
 	if val, ok := languages[language]; ok {
 		return val, nil
 	}
-	return "", errors.New("language with code '" + language + "' is not supported")
+	return "", logging.Trace(fmt.Errorf("language with code %s is not supported", language))
 }
 
 func ucFirst(str string) string {
