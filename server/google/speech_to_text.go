@@ -123,10 +123,12 @@ func SpeechToTextFromStream(
 			break
 		}
 		if err != nil {
-			logger.Fatal(fmt.Sprintf("cannot stream results: %s", err))
+			logger.Error(fmt.Sprintf("cannot stream results: %s", err))
+			break
 		}
 		if err := resp.Error; err != nil {
-			logger.Fatal(fmt.Sprintf("could not recognize: %s", err))
+			logger.Error(fmt.Sprintf("could not recognize: %s", err))
+			break
 		}
 		for _, result := range resp.Results {
 			duration = result.GetResultEndTime().Seconds
