@@ -3,14 +3,13 @@ package google
 import (
 	"bytes"
 	"cloud.google.com/go/storage"
-	"errors"
 	"fmt"
+	"github.com/Alliera/logging"
 	"github.com/Alliera/speech-to-text/server"
 	"golang.org/x/net/context"
 	"io"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -21,16 +20,18 @@ func DeleteFile(link string, enterpriseId int) error {
 	ctx := context.Background()
 	client, err := storage.NewClient(ctx, GetCredentials(enterpriseId))
 	if err != nil {
-		return fmt.Errorf("storage.NewClient: %v", err)
+		return logging.Trace(fmt.Errorf("storage.NewClient: %s", err))
 	}
-	defer client.Close()
+	defer func() {
+		err = client.Close()
+	}()
 
 	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
 
 	o := client.Bucket(GetBucketName(enterpriseId)).Object(object)
-	if err := o.Delete(ctx); err != nil {
-		return fmt.Errorf("Object(%q).Delete: %v", object, err)
+	if err = o.Delete(ctx); err != nil {
+		return logging.Trace(fmt.Errorf("Object(%q).Delete: %s", object, err))
 	}
 	fmt.Println(link + " was removed")
 	return nil
@@ -40,21 +41,23 @@ func WriteToCloudStorage(url string, enterpriseId int) (gsUrl string, localFileP
 	fmt.Println("Start downloading file " + url)
 	resp, err := http.Get(url)
 	if err != nil {
-		return "", "", err
+		return "", "", logging.Trace(err)
 	}
 	if resp.StatusCode != 200 {
-		return "", "", errors.New("Wrong status code (" + strconv.Itoa(resp.StatusCode) + ") for url " + url)
+		return "", "", logging.Trace(fmt.Errorf("wrong status code (%d) for url %s", resp.StatusCode, url))
 	}
 	fmt.Println("Start uploading file to gc " + url)
 	var buf bytes.Buffer
 	body := io.TeeReader(resp.Body, &buf)
 	fileName := server.RandomString(8) + ".wav"
 
-	defer resp.Body.Close()
+	defer func() {
+		err = resp.Body.Close()
+	}()
 	ctx := context.Background()
 	client, err := storage.NewClient(ctx, GetCredentials(enterpriseId))
 	if err != nil {
-		return "", "", err
+		return "", "", logging.Trace(err)
 	}
 	bucketName := GetBucketName(enterpriseId)
 	bkt := client.Bucket(bucketName)
@@ -64,23 +67,26 @@ func WriteToCloudStorage(url string, enterpriseId int) (gsUrl string, localFileP
 	_, err = io.Copy(wc, body)
 	if err != nil {
 		_ = client.Close()
-		return "", "", err
+		return "", "", logging.Trace(err)
 	}
 	err = wc.Close()
 	_ = client.Close()
 	if err != nil {
-		return "", "", err
+		return "", "", logging.Trace(err)
 	}
 	gsName := "gs://" + bucketName + "/" + fileName
 	fmt.Println("File " + gsName + " was uploaded to google bucket")
 
 	localFilePath = "/tmp/" + fileName
 	file, err := os.Create(localFilePath)
-	defer file.Close()
+
+	defer func() {
+		err = file.Close()
+	}()
 	if err != nil {
-		return "", "", err
+		return "", "", logging.Trace(err)
 	}
-	_, err = io.Copy(file, &buf)
+	_, _ = io.Copy(file, &buf)
 
 	return gsName, localFilePath, nil
 }

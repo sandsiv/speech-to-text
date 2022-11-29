@@ -4,15 +4,16 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"github.com/Alliera/logging"
 	"github.com/Alliera/speech-to-text/server/google"
 	"github.com/CyCoreSystems/audiosocket"
 	"github.com/gofrs/uuid"
-	"github.com/pkg/errors"
-	"log"
 	"net"
 	"sync"
 	"time"
 )
+
+var logger = logging.NewDefault("audio server")
 
 type RecognitionResult struct {
 	Time     time.Time `json:"time"`
@@ -29,9 +30,9 @@ func Start() {
 	ctx := context.Background()
 	go removeOldRecognitionResults()
 	if err := Listen(ctx); err != nil {
-		log.Fatalln("listen failure:", err)
+		logger.LogFatal(err, "listen failure")
 	}
-	log.Println("exiting")
+	logger.Debug("exiting")
 }
 
 func removeOldRecognitionResults() {
@@ -41,7 +42,7 @@ func removeOldRecognitionResults() {
 			recognitionResult := value.(RecognitionResult)
 			diff := time.Now().Sub(recognitionResult.Time)
 			if diff > time.Hour*3 {
-				log.Println("Text receiving timeout exeeded!")
+				logger.Info("Text receiving timeout exeeded!")
 				RecognitionResults.Delete(key)
 			}
 			return true
@@ -53,13 +54,13 @@ func removeOldRecognitionResults() {
 func Listen(ctx context.Context) error {
 	l, err := net.Listen("tcp", listenAddr)
 	if err != nil {
-		return errors.Wrapf(err, "failed to bind listener to socket %s", listenAddr)
+		return logging.Trace(fmt.Errorf("failed to bind listener to socket %s: %s", listenAddr, err))
 	}
 	fmt.Println("Audiosocket server started on " + listenAddr)
 	for {
 		conn, err := l.Accept()
 		if err != nil {
-			log.Println("failed to accept new connection:", err)
+			logger.Error(fmt.Sprintf("failed to accept new connection: %s", err))
 			continue
 		}
 
@@ -70,14 +71,15 @@ func Listen(ctx context.Context) error {
 func getCallID(c net.Conn) (uuid.UUID, error) {
 	m, err := audiosocket.NextMessage(c)
 	if err != nil {
-		return uuid.Nil, err
+		return uuid.Nil, logging.Trace(err)
 	}
 
 	if m.Kind() != audiosocket.KindID {
-		return uuid.Nil, errors.Errorf("invalid message type %d getting CallID", m.Kind())
+		return uuid.Nil, logging.Trace(fmt.Errorf("invalid message type %d getting CallID", m.Kind()))
 	}
-
-	return uuid.FromBytes(m.Payload())
+	uuidValue, err := uuid.FromBytes(m.Payload())
+	err = logging.Trace(err)
+	return uuidValue, err
 }
 
 func Handle(pCtx context.Context, c net.Conn) {
@@ -87,26 +89,26 @@ func Handle(pCtx context.Context, c net.Conn) {
 		cancel()
 
 		if _, err := c.Write(audiosocket.HangupMessage()); err != nil {
-			log.Println("failed to send hangup message:", err)
+			logger.Error(fmt.Sprintf("failed to send hangup message: %s", err))
 		}
 	}()
 
 	id, err := getCallID(c)
-	fmt.Println(id)
+	logger.Debug(id.String())
 	idBytes := id.Bytes()
 	enterpriseId := int(binary.LittleEndian.Uint16(idBytes[0:2]))
 	languageCode := string(idBytes[2:4])
 
 	if err != nil {
-		log.Println("failed to get call ID:", err)
+		logger.LogError(err, "failed to get call ID")
 		return
 	}
-	log.Printf("processing call %s", id.String())
+	logger.Info(fmt.Sprintf("processing call %s", id.String()))
 
 	duration, text, err := google.SpeechToTextFromStream(ctx, c, MaxCallDuration, enterpriseId, languageCode)
 	duration = int64(google.RoundSecs(float64(duration)))
 	if err != nil {
-		log.Println("failed to process command:", err)
+		logger.Error(fmt.Sprintf("failed to process command: %s", err))
 		return
 	}
 

@@ -5,6 +5,7 @@ go 1.15
 require (
 	cloud.google.com/go v0.74.0
 	cloud.google.com/go/storage v1.12.0
+	github.com/Alliera/logging v0.0.3
 	github.com/CyCoreSystems/audiosocket v0.2.0
 	github.com/cheekybits/is v0.0.0-20150225183255-68e9c0620927 // indirect
 	github.com/cryptix/wav v0.0.0-20180415113528-8bdace674401

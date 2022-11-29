@@ -5,6 +5,7 @@ import (
 	"cloud.google.com/go/storage"
 	"context"
 	"encoding/json"
+	"github.com/Alliera/logging"
 	"github.com/Alliera/speech-to-text/server"
 	"github.com/Alliera/speech-to-text/server/dto"
 	"google.golang.org/api/option"
@@ -37,12 +38,12 @@ func GetBucketName(enterpriseId int) string {
 	if _, err := os.Stat(bucketsFilePath); err == nil {
 		content, err := ioutil.ReadFile(bucketsFilePath)
 		if err != nil {
-			panic(err)
+			logger.Fatal(err.Error())
 		}
 		var buckets map[int]string
 		err = json.Unmarshal(content, &buckets)
 		if err != nil {
-			panic(err)
+			logger.Fatal(err.Error())
 		}
 		if bucketFromConfig, ok := buckets[enterpriseId]; ok {
 			bucketName = bucketFromConfig
@@ -57,27 +58,27 @@ func AddBucketName(enterpriseId int, bucketName string) error {
 	if _, err := os.Stat(bucketsFilePath); err == nil {
 		content, err := ioutil.ReadFile(bucketsFilePath)
 		if err != nil {
-			panic(err)
+			logger.Fatal(err.Error())
 		}
 		err = json.Unmarshal(content, &buckets)
 		if err != nil {
-			panic(err)
+			logger.Fatal(err.Error())
 		}
 	}
 	buckets[enterpriseId] = bucketName
 	text, err := json.Marshal(buckets)
 	if err != nil {
-		return err
+		return logging.Trace(err)
 	}
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		err = os.MkdirAll(configPath, 0700)
 		if err != nil {
-			return err
+			return logging.Trace(err)
 		}
 	}
 	err = writeFile(bucketsFilePath, text)
 	if err != nil {
-		return err
+		return logging.Trace(err)
 	}
 
 	return nil
@@ -86,12 +87,12 @@ func AddBucketName(enterpriseId int, bucketName string) error {
 func AddCredentials(enterpriseId int, credentials map[string]string) error {
 	text, err := json.Marshal(credentials)
 	if err != nil {
-		return err
+		return logging.Trace(err)
 	}
 	path := credentialsPath + strconv.Itoa(enterpriseId) + ".json"
 	err = saveFile(credentialsPath, path, text)
 	if err != nil {
-		return err
+		return logging.Trace(err)
 	}
 
 	return nil
@@ -101,13 +102,13 @@ func saveFile(path string, filePath string, text []byte) error {
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		err = os.MkdirAll(path, 0700)
 		if err != nil {
-			return err
+			return logging.Trace(err)
 		}
 	}
 
 	err := writeFile(filePath, text)
 	if err != nil {
-		return err
+		return logging.Trace(err)
 	}
 
 	return nil
@@ -116,15 +117,15 @@ func saveFile(path string, filePath string, text []byte) error {
 func writeFile(fileName string, data []byte) error {
 	file, err := os.OpenFile(fileName, os.O_RDONLY|os.O_CREATE, 0644)
 	if err != nil {
-		return err
+		return logging.Trace(err)
 	}
 	err = file.Close()
 	if err != nil {
-		return err
+		return logging.Trace(err)
 	}
 	err = ioutil.WriteFile(fileName, data, 0644)
 	if err != nil {
-		return err
+		return logging.Trace(err)
 	}
 	return nil
 }
@@ -134,17 +135,17 @@ func CheckCredentials(credentials dto.Credentials) error {
 	tempFile := tmpPath + server.RandomString(5) + ".json"
 	text, err := json.Marshal(credentials.Credentials)
 	if err != nil {
-		return err
+		return logging.Trace(err)
 	}
 	err = saveFile(tmpPath, tempFile, text)
 	if err != nil {
-		return err
+		return logging.Trace(err)
 	}
 	ctx := context.Background()
 	client, err := speech.NewClient(ctx, option.WithCredentialsFile(tempFile))
 	if err != nil {
 		_ = os.Remove(tempFile)
-		return err
+		return logging.Trace(err)
 	}
 	_, err = client.Recognize(ctx, &speechpb.RecognizeRequest{
 		Config: &speechpb.RecognitionConfig{
@@ -160,13 +161,13 @@ func CheckCredentials(credentials dto.Credentials) error {
 
 	if err != nil {
 		_ = os.Remove(tempFile)
-		return err
+		return logging.Trace(err)
 	}
 
 	clientBucket, err := storage.NewClient(ctx, option.WithCredentialsFile(tempFile))
 	if err != nil {
 		_ = os.Remove(tempFile)
-		return err
+		return logging.Trace(err)
 	}
 	ctx = context.Background()
 	bkt := clientBucket.Bucket(credentials.BucketName)
@@ -176,7 +177,7 @@ func CheckCredentials(credentials dto.Credentials) error {
 
 	if err != nil {
 		_ = os.Remove(tempFile)
-		return err
+		return logging.Trace(err)
 	}
 	_ = os.Remove(tempFile)
 
