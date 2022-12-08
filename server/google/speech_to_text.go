@@ -3,7 +3,10 @@ package google
 import (
 	speech "cloud.google.com/go/speech/apiv1"
 	"context"
+	"encoding/binary"
+	"fmt"
 	"github.com/CyCoreSystems/audiosocket"
+	"github.com/gofrs/uuid"
 	"github.com/pkg/errors"
 	speechpb "google.golang.org/genproto/googleapis/cloud/speech/v1"
 	"io"
@@ -77,8 +80,15 @@ func SpeechToTextFromStream(
 	pCtx context.Context,
 	r io.ReadWriter,
 	timeout time.Duration,
-	enterpriseId int,
-	languageCode string) (duration int64, text string, err error) {
+	id uuid.UUID) (duration int64, text string, err error) {
+	idBytes := id.Bytes()
+	enterpriseId := int(binary.LittleEndian.Uint16(idBytes[0:2]))
+	languageCode := string(idBytes[2:4])
+	fmt.Printf("[%s] Start audio stream processing on enterprise with id %d for language code %s...",
+		id.String(),
+		enterpriseId,
+		languageCode,
+	)
 	ctx, cancel := context.WithTimeout(pCtx, timeout)
 	defer cancel()
 	client, err := getSpeechToTextClient(ctx, enterpriseId)
@@ -140,7 +150,12 @@ func SpeechToTextFromStream(
 
 		}
 	}
-
+	fmt.Printf("[%s] Finish processing on enterprise with id %d for language code %s (duration: %d)...",
+		id.String(),
+		enterpriseId,
+		languageCode,
+		duration,
+	)
 	return duration, text, nil
 }
 func pipeFromSocket(ctx context.Context, in io.Reader, out speechpb.Speech_StreamingRecognizeClient) {

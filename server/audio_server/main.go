@@ -2,7 +2,6 @@ package audio_server
 
 import (
 	"context"
-	"encoding/binary"
 	"fmt"
 	"github.com/Alliera/speech-to-text/server/google"
 	"github.com/CyCoreSystems/audiosocket"
@@ -92,18 +91,13 @@ func Handle(pCtx context.Context, c net.Conn) {
 	}()
 
 	id, err := getCallID(c)
-	fmt.Println(id)
-	idBytes := id.Bytes()
-	enterpriseId := int(binary.LittleEndian.Uint16(idBytes[0:2]))
-	languageCode := string(idBytes[2:4])
 
 	if err != nil {
 		log.Println("failed to get call ID:", err)
 		return
 	}
-	log.Printf("processing call %s", id.String())
 
-	duration, text, err := google.SpeechToTextFromStream(ctx, c, MaxCallDuration, enterpriseId, languageCode)
+	duration, text, err := google.SpeechToTextFromStream(ctx, c, MaxCallDuration, id)
 	duration = int64(google.RoundSecs(float64(duration)))
 	if err != nil {
 		log.Println("failed to process command:", err)
