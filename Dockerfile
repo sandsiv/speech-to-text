@@ -12,7 +12,7 @@ RUN apt-get update \
     iputils-ping \
     less \
     locales \
-    losos \
+    lsof \
     mc \
     mtr \
     netcat \
