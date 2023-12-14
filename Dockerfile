@@ -38,9 +38,10 @@ RUN apt-get update \
 
 WORKDIR /go/src/app
 
-RUN useradd -ms /bin/bash www
-RUN chown -R www:www /go/src/app
-COPY --from=0 --chmod=550 --chown=www:www /go/src/app/speech-to-text /
+COPY --from=0 /go/src/app/speech-to-text /
+RUN useradd -ms /bin/bash www && \
+    chown -R www:www /go/src/app && \
+    chmod 550 /go/src/app/speech-to-text
 
 USER www
 
