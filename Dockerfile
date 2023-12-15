@@ -31,9 +31,10 @@ RUN apt-get update \
     tar \
     telnet \
     unzip \
-    vim \
+    vim.tiny \
     wget \
     zip \
+  && update-alternatives --set editor /usr/bin/vim.tiny \
   && rm -rf /var/cache/apt/archives/*
 
 WORKDIR /go/src/app
