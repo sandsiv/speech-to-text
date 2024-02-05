@@ -1,4 +1,4 @@
-FROM golang:1.15-buster
+FROM golang:1.21.6-bookworm
 
 WORKDIR /go/src/app
 COPY ./go.mod ./go.mod
@@ -9,34 +9,7 @@ COPY ./server ./server
 
 RUN GOOS=`uname| tr '[:upper:]' '[:lower:]'` GOARCH=amd64 go build -ldflags "-s -w" -o speech-to-text
 
-FROM debian:buster-slim
-
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends \
-    ca-certificates \
-    curl \
-    dnsutils \
-    git \
-    gnupg \
-    gnupg1 \
-    gnupg2 \
-    htop \
-    iputils-ping \
-    less \
-    locales \
-    lsof \
-    mc \
-    mtr \
-    netcat \
-    procps \
-    tar \
-    telnet \
-    unzip \
-    vim.tiny \
-    wget \
-    zip \
-  && update-alternatives --set editor /usr/bin/vim.tiny \
-  && rm -rf /var/cache/apt/archives/*
+FROM python:3.10.13-bookworm
 
 WORKDIR /go/src/app
 
