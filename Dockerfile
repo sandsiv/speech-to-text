@@ -9,7 +9,7 @@ COPY ./server ./server
 
 RUN GOOS=`uname| tr '[:upper:]' '[:lower:]'` GOARCH=amd64 go build -ldflags "-s -w" -o speech-to-text
 
-FROM python:3.10.13-bookworm
+FROM debian:bookworm-20240130
 
 WORKDIR /go/src/app
 
