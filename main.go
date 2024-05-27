@@ -7,6 +7,7 @@ import (
 	"github.com/Alliera/speech-to-text/server/audio_server"
 	"github.com/Alliera/speech-to-text/server/dto"
 	"github.com/Alliera/speech-to-text/server/google"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -81,7 +82,7 @@ func responseError(w http.ResponseWriter, code int, error error) bool {
 }
 
 func addCredentials(w http.ResponseWriter, r *http.Request) {
-	body, err := ioutil.ReadAll(r.Body)
+	body, err := io.ReadAll(r.Body)
 	if responseError(w, http.StatusBadRequest, err) {
 		return
 	}

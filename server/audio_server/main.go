@@ -40,7 +40,7 @@ func removeOldRecognitionResults() {
 			recognitionResult := value.(RecognitionResult)
 			diff := time.Now().Sub(recognitionResult.Time)
 			if diff > time.Hour*3 {
-				log.Println("Text receiving timeout exeeded!")
+				log.Println("Text receiving timeout exceeded!")
 				RecognitionResults.Delete(key)
 			}
 			return true

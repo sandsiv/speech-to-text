@@ -1,9 +1,8 @@
 package reader
 
 import (
-	"os"
-
 	"github.com/cryptix/wav"
+	"os"
 )
 
 func getFileMeta(fileName string) wav.File {

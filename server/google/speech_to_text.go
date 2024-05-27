@@ -2,13 +2,13 @@ package google
 
 import (
 	speech "cloud.google.com/go/speech/apiv1"
+	"cloud.google.com/go/speech/apiv1/speechpb"
 	"context"
 	"encoding/binary"
 	"fmt"
 	"github.com/CyCoreSystems/audiosocket"
 	"github.com/gofrs/uuid"
 	"github.com/pkg/errors"
-	speechpb "google.golang.org/genproto/googleapis/cloud/speech/v1"
 	"io"
 	"log"
 	"sync"
@@ -62,7 +62,7 @@ func getSpeechToTextClient(ctx context.Context, enterpriseId int) (*speech.Clien
 	return client.(*speech.Client), nil
 }
 
-//Google use 15 sec blocks billing
+// Google use 15 sec blocks billing
 func RoundSecs(sec float64) int32 {
 	var secondsTarification float64 = 15
 	blocks := sec / secondsTarification

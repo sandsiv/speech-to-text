@@ -2,14 +2,13 @@ package google
 
 import (
 	speech "cloud.google.com/go/speech/apiv1"
+	"cloud.google.com/go/speech/apiv1/speechpb"
 	"cloud.google.com/go/storage"
 	"context"
 	"encoding/json"
 	"github.com/Alliera/speech-to-text/server"
 	"github.com/Alliera/speech-to-text/server/dto"
 	"google.golang.org/api/option"
-	speechpb "google.golang.org/genproto/googleapis/cloud/speech/v1"
-	"io/ioutil"
 	"os"
 	"strconv"
 )
@@ -35,7 +34,7 @@ func GetBucketName(enterpriseId int) string {
 		return bucketName
 	}
 	if _, err := os.Stat(bucketsFilePath); err == nil {
-		content, err := ioutil.ReadFile(bucketsFilePath)
+		content, err := os.ReadFile(bucketsFilePath)
 		if err != nil {
 			panic(err)
 		}
@@ -55,7 +54,7 @@ func GetBucketName(enterpriseId int) string {
 func AddBucketName(enterpriseId int, bucketName string) error {
 	buckets := make(map[int]string)
 	if _, err := os.Stat(bucketsFilePath); err == nil {
-		content, err := ioutil.ReadFile(bucketsFilePath)
+		content, err := os.ReadFile(bucketsFilePath)
 		if err != nil {
 			panic(err)
 		}
@@ -122,7 +121,7 @@ func writeFile(fileName string, data []byte) error {
 	if err != nil {
 		return err
 	}
-	err = ioutil.WriteFile(fileName, data, 0644)
+	err = os.WriteFile(fileName, data, 0644)
 	if err != nil {
 		return err
 	}

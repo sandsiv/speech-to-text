@@ -6,13 +6,12 @@ import (
 )
 
 func RandomString(n int) string {
-	rand.Seed(time.Now().UnixNano())
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	var letters = []rune("abcdghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
 	b := make([]rune, n)
 	for i := range b {
-		b[i] = letters[rand.Intn(len(letters))]
-
+		b[i] = letters[r.Intn(len(letters))]
 	}
 	return string(b)
 }
