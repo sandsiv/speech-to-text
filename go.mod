@@ -1,6 +1,6 @@
 module github.com/Alliera/speech-to-text
 
-go 1.21
+go 1.21.13
 
 require (
 	cloud.google.com/go/speech v1.23.1

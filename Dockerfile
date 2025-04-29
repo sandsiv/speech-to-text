@@ -1,4 +1,4 @@
-FROM golang:1.21.6-bookworm
+FROM golang:1.21.13-bookworm
 
 WORKDIR /go/src/app
 COPY ./go.mod ./go.mod
@@ -9,7 +9,7 @@ COPY ./server ./server
 
 RUN GOOS=$(uname | tr '[:upper:]' '[:lower:]') GOARCH=amd64 go build -ldflags "-s -w" -o speech-to-text
 
-FROM debian:bookworm-20240612
+FROM debian:bookworm-20250428
 
 WORKDIR /go/src/app
 
